@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Profile</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+
+    <style>
+        body {
+            background-color: #eef2f7;
+        }
+        h2 {
+            font-weight: bold;
+            color: #4a69bd;
+        }
+        .card {
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.1);
+            border: none;
+            margin-bottom: 20px;
+            border-radius: 15px;
+        }
+        .card:hover {
+            transform: scale(1.02);
+            transition: all 0.3s;
+        }
+        .table {
+            background-color: #ffffff;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .table th {
+            background-color: #4a69bd;
+            color: #ffffff;
+        }
+        .btn-primary, .btn-danger, .btn-success {
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+        .flash-container {
+            margin-top: 20px;
+            
+            margin-left: auto;
+            margin-right: auto;
+        }
+    </style>
+</head>
+<body>
+<!-- Flash Messages Container -->
+<div class="flash-container">
+    {% with messages = get_flashed_messages(with_categories=True) %}
+    {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }} d-flex justify-content-between align-items-center alert-dismissible fade show mb-1" role="alert">
+            <span>{{ message }}</span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+    {% endif %}
+    {% endwith %}
+</div>
+
+    <div class="container mt-5">
+        <h2 class="text-center mb-4">Customer Profile</h2>
+
+        <!-- Edit Profile Section -->
+        <div class="card p-4">
+            <h4 class="card-title text-center mb-3">Edit Profile</h4>
+            <form action="{{ url_for('update_profile') }}" method="POST">
+                <div class="mb-3">
+                    <label for="username" class="form-label">Name</label>
+                    <input type="text" id="username" name="username" class="form-control" value="{{ customer.username }}" required>
+                </div>
+                <div class="mb-3">
+                    <label for="email" class="form-label">Email</label>
+                    <input type="email" id="email" name="email" class="form-control" value="{{ customer.email }}" disabled>
+                </div>
+                <div class="mb-3">
+                    <label for="phone_no" class="form-label">Phone Number</label>
+                    <input type="number" id="phone_no" name="phone_no" class="form-control" value="{{ customer.phone_no }}" required>
+                </div>
+                <div class="mb-3">
+                    <label for="city" class="form-label">City</label>
+                    <select id="city" name="city" class="form-select" required>
+                        <option value="" disabled>Select your city</option>
+                        {% for city in cities %}
+                        <option value="{{ city }}" {% if city == customer.city %}selected{% endif %}>{{ city }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="area" class="form-label">Address</label>
+                    <input type="text" id="area" name="area" class="form-control" value="{{ customer.area }}" required>
+                </div>
+                <div class="mb-3">
+                    <label for="pincode" class="form-label">Pincode</label>
+                    <input type="number" id="pincode" name="pincode" class="form-control" value="{{ customer.pincode }}" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Update Profile</button>
+            </form>
+        </div>
+
+
+ <!-- Search Bar -->
+<div class="card p-4" class="container mt-3 mb-4" >
+    <form method="GET" action="{{ url_for('customer_profile') }}">
+        <div class="input-group">
+            <input 
+                type="text" 
+                name="search" 
+                class="form-control" 
+                placeholder="Search by service name, date of request (year-month-date)" 
+                value="{{ search_query }}">
+            <button class="btn btn-primary" type="submit">Search</button>
+        </div>
+    </form>
+
+    {% if search_query %}
+    <div class="alert alert-info mt-2">
+        Showing results for "<strong>{{ search_query }}</strong>"
+    </div>
+    {% endif %}
+</div>
+
+<!-- Service Requests Section -->
+<div class="card p-4">
+    <h4 class="card-title text-center mb-3">Service Requests</h4>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Service Name</th>
+                <th>Status</th>
+                <th>Date of Request</th>
+                <th>Professional's Name</th>
+                <th>Professional's Phone</th>
+                <th>Professional's Email</th>
+                <th>Service Code</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if service_requests %}
+                {% for request in service_requests %}
+                <tr>
+                    <td>{{ request.service_name }}</td>
+                    <td><strong>{{ request.service_status }}</strong></td>
+                    <td>
+                        {{ request.date_of_request.strftime('%Y-%m-%d') }}
+                    
+                        {% if request.service_status == 'Requested' %}
+                        <!-- Direct edit form -->
+                        <form action="{{ url_for('change_date_direct', request_id=request.id) }}" method="POST" class="d-flex align-items-center gap-2 mt-1">
+                            <input type="date" name="new_date" class="form-control form-control-sm" required>
+                            <button type="submit" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-arrow-up-long"></i>
+                                <i class="fas fa-arrow-down-long"></i> Update
+                            </button>
+                        </form>
+                    
+                        {% elif request.service_status == 'Accepted' %}
+                        <!-- Pending date change form -->
+                        <form action="{{ url_for('request_date_change', request_id=request.id) }}" method="POST" class="d-flex align-items-center gap-2 mt-1">
+                            <input type="date" name="new_date" class="form-control form-control-sm" required>
+                            <button type="submit" class="btn btn-sm btn-warning">
+                                <i class="fas fa-arrow-up-long"></i>
+                                <i class="fas fa-arrow-down-long ms-1"></i>
+                                Update
+                            </button>
+                        </form>
+                    
+                        {% if request.pending_date_change %}
+                        <span class="text-info small">Requested: {{ request.pending_date_change.strftime('%Y-%m-%d') }}</span>
+                        {% endif %}
+                        {% endif %}
+                    
+                        <!-- Show rejected dates if available -->
+                        {% if rejected_dates_map.get(request.id) %}
+                        <div class="text-danger small mt-1">
+                            {% for dt in rejected_dates_map[request.id] %}
+                            <div>Rejected: {{ dt.strftime('%Y-%m-%d') }}</div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </td>                                       
+                    <td>{{ professionals[request.id].username if request.id in professionals else '' }}</td>
+                    <td>{{ professionals[request.id].phone_no if request.id in professionals else '' }}</td>
+                    <td>{{ professionals[request.id].email if request.id in professionals else '' }}</td>
+                    <td class="text-center">
+                        {% if request.service_status in ['Accepted', 'Completed'] %}
+                            <strong>{{ request.unique_code }}</strong>
+                        {% else %}
+                            <span class="text-muted">―</span>
+                        {% endif %}
+                    </td>                                      
+                    <td>
+                        {% if request.service_status == 'Completed' %}
+                            {% if not request.ratings %}
+                            <form action="{{ url_for('rate_service', request_id=request.id) }}" method="POST" class="d-flex align-items-center gap-2">
+                                <select name="rating" class="form-select form-select-sm w-auto" required>
+                                    <option value="" disabled selected>Rate</option>
+                                    {% for i in range(1, 6) %}
+                                        <option value="{{ i }}">{{ i }} Star{{ 's' if i > 1 }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" class="btn btn-sm btn-success">
+                                    <i class="fas fa-arrow-up-long"></i>
+                                    <i class="fas fa-arrow-down-long ms-1"></i> Submit
+                                </button>
+                            </form>                            
+                            {% else %}
+                            <span class="text-success">Rated: <strong>{{ request.ratings }}</strong> Stars</span>
+                            {% endif %}
+                        {% elif request.service_status == 'Requested' %}
+                            <form action="{{ url_for('cancel_request', request_id=request.id) }}" method="POST" class="d-inline">
+                                <button type="submit" class="btn btn-danger btn-sm">Cancel</button>
+                            </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="7" class="text-center">No service requests found.</td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .chart-container {
+            margin-bottom: 40px;
+            width: 100%;
+            max-width: 800px;
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Dashboard</h1>
+
+    <div class="chart-container">
+        <h2>Customers by City</h2>
+        <canvas id="customersByCity"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <h2>Service Professionals by City</h2>
+        <canvas id="professionalsByCity"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <h2>Service Professionals by Service Type</h2>
+        <canvas id="serviceTypes"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <h2>Service Requests by Type</h2>
+        <canvas id="serviceRequests"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <h2>Requests by Status</h2>
+        <canvas id="serviceStatus"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <h2>Customer Ratings</h2>
+        <canvas id="ratings"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <h2>Monthly Service Requests</h2>
+        <canvas id="monthlyRequests"></canvas>
+    </div>
+
+    <script>
+        const colors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
+
+        function createChart(type, id, labels, data, label) {
+            new Chart(document.getElementById(id), {
+                type: type,
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: label,
+                        data: data,
+                        backgroundColor: colors.slice(0, labels.length),
+                        borderColor: colors.slice(0, labels.length),
+                        borderWidth: 1,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        // Fetch data and render each chart
+        fetch('/chart/customers-by-city').then(res => res.json()).then(data => {
+            createChart('bar', 'customersByCity', data.labels, data.values, 'Customers');
+        });
+
+        fetch('/chart/professionals-by-city').then(res => res.json()).then(data => {
+            createChart('bar', 'professionalsByCity', data.labels, data.values, 'Professionals');
+        });
+
+        fetch('/chart/service-types').then(res => res.json()).then(data => {
+            createChart('pie', 'serviceTypes', data.labels, data.values, 'Service Types');
+        });
+
+        fetch('/chart/service-requests').then(res => res.json()).then(data => {
+            createChart('bar', 'serviceRequests', data.labels, data.values, 'Requests');
+        });
+
+        fetch('/chart/service-status').then(res => res.json()).then(data => {
+            createChart('pie', 'serviceStatus', data.labels, data.values, 'Status');
+        });
+
+        fetch('/chart/ratings').then(res => res.json()).then(data => {
+            createChart('pie', 'ratings', data.labels, data.values, 'Ratings');
+        });
+
+        fetch('/chart/monthly-requests').then(res => res.json()).then(data => {
+            createChart('line', 'monthlyRequests', data.labels, data.values, 'Monthly Requests');
+        });
+    </script>
+</body>
+</html>
+

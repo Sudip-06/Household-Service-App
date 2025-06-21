@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script>
+        function toggleFields() {
+            const role = document.getElementById('role').value;
+            document.getElementById('service-professional-fields').style.display = (role === 'service professional') ? 'block' : 'none';
+            document.getElementById('customer-fields').style.display = (role === 'customer') ? 'block' : 'none';
+        }
+
+        function togglePassword() {
+            const passwordField = document.getElementById('password');
+            const confirmPasswordField = document.getElementById('confirm_password');
+            const type = passwordField.type === 'password' ? 'text' : 'password';
+            passwordField.type = type;
+            confirmPasswordField.type = type;
+        }
+
+        function validatePassword() {
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirm_password').value;
+            if (password !== confirmPassword) {
+                document.getElementById('password-error').textContent = "Passwords do not match!";
+                return false;
+            }
+            document.getElementById('password-error').textContent = "";
+            return true;
+        }
+
+        async function fetchServices() {
+            const city = document.getElementById('city').value; // Get selected city
+            const serviceDropdown = document.getElementById('service_type');
+            
+            // Clear existing options
+            serviceDropdown.innerHTML = '<option value="" disabled selected>Select Service Type</option>';
+            
+            if (city) {
+                try {
+                    const response = await fetch(`/get_services/${city}`);
+                    const services = await response.json();
+                    
+                    // Populate service dropdown with fetched services
+                    services.forEach(service => {
+                        const option = document.createElement('option');
+                        option.value = service.name;
+                        option.textContent = service.name;
+                        serviceDropdown.appendChild(option);
+                    });
+                } catch (error) {
+                    console.error('Error fetching services:', error);
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .form-container {
+            max-width: 450px;
+            margin: auto;
+            margin-top: 50px;
+            padding: 20px;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        /* Flash messages styling */
+        .flash-container {
+            width: 100%;
+            color: red;
+            margin-top: 10px;
+            margin-bottom: 10px;
+        }
+        .form-title {
+            margin-bottom: 40px;
+        }
+        .btn-green {
+            background-color: #28a745;
+            color: #ffffff;
+        }
+        .btn-green:hover {
+            background-color: #218838;
+        }
+        .text-danger {
+            font-size: 0.9rem;
+        }
+        /* Link style */
+        .container .login-link {
+            display: block;
+            margin-top: 15px;
+            color: #4CAF50;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .container .login-link:hover {
+            text-decoration: underline;
+        }
+        .form-control{
+            margin-bottom: 25px;
+        }
+        .form-select{
+            margin-bottom: 25px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="form-container">
+        <h2 class="form-title text-center">Sign Up</h2>
+        <form action="{{ url_for('signup') }}" method="POST"  enctype="multipart/form-data" onsubmit="return validatePassword()">
+            <!-- Name -->
+            <div class="mb-3">
+                <input type="text" id="username" name="username" class="form-control" placeholder="Enter Your Full Name" required>
+            </div>
+
+            <!-- Email -->
+            <div class="mb-3">
+                <input type="email" id="email" name="email" class="form-control" placeholder="Enter Your Email Id" required>
+            </div>
+
+            <div class="mb-3">
+                <input type="text" id="phone_no" name="phone_no"  class="form-control" pattern="[0-9]{10}" maxlength="10" placeholder="Enter Your 10-digit phone number">
+            </div>
+            <!-- City -->
+            <!-- City Selection -->
+            <div class="mb-3">
+                <select id="city" name="city" class="form-select" onchange="fetchServices()" required>
+                    <option value="" disabled selected>Select Your City</option>
+                    {% for city in cities %}
+                    <option value="{{ city.city }}">{{ city.city }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <!-- Role -->
+            <div class="mb-3">
+                <select id="role" name="role" class="form-select" onchange="toggleFields()" required>
+                    <option value="" disabled selected>Select Your Role</option>
+                    <option value="customer">Customer</option>
+                    <option value="service professional">Service Professional</option>
+                </select>
+            </div>
+
+            <!-- Service Professional Fields -->
+            <div id="service-professional-fields" style="display: none;">
+                <div class="mb-3">
+                    <select id="service_type" name="service_type" class="form-select">
+                        <option value="" disabled selected>Select Service Type</option>
+                        <!-- Options will be dynamically updated -->
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <input type="number" min="0" max="42" name="experience"  class="form-control" placeholder="Years Of Experience">
+                </div>
+                
+                <div class="mb-3">
+                    <div class="input-group">
+                    <small id="cvUploadHelp" class="form-text text-muted">
+                        Please upload your CV in PDF format only. Maximum size: 5MB.
+                    </small>
+                        <input 
+                            type="file" 
+                            name="file" 
+                            class="form-control" 
+                            id="cvUpload" 
+                            aria-describedby="cvUploadHelp" 
+                            accept=".pdf,.doc,.docx" 
+                           
+                            
+                        >
+                    </div>
+                    
+                </div>
+
+
+                <div class="mb-3">
+                    <textarea id="description" name="description" class="form-control" placeholder="Write a brief description of your profession"></textarea>
+                </div>
+            </div>
+
+            
+
+            <!-- Customer Fields -->
+            <div id="customer-fields" style="display: none;">
+                <div class="mb-3">
+                    <input type="text" id="area" name="area" class="form-control" placeholder="Enter Your Address">
+                </div>
+                <div class="mb-3">
+                    <input type="text" class="form-control" id="pincode" name="pincode" pattern="[0-9]{6}" maxlength="6" placeholder="Enter 6-digit pincode">
+                </div>
+            </div>
+
+            <!-- Password -->
+            <div class="mb-3">
+                <small id="cvUploadHelp1" class="form-text text-muted">
+                    Password must be 8-16 characters long.<br>
+                    Include at least one uppercase letter<br> one lowercase letter<br> one number<br> and one special character (@$!%*?&).
+                </small>
+                <input type="password" id="password" name="password" class="form-control" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[@$!%*?&])[A-Za-z0-9@$!%*?&]{8,16}" placeholder="Enter Password" required>
+            </div>
+
+            <!-- Confirm Password -->
+            <div class="mb-3">
+                <input type="password" id="confirm_password" name="confirm_password" class="form-control" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[@$!%*?&])[A-Za-z0-9@$!%*?&]{8,16}" placeholder="Enter Confirm Password" required>
+                <div class="form-check mt-2">
+                    <input type="checkbox" class="form-check-input" id="show-password" onclick="togglePassword()">
+                    <label class="form-check-label" for="show-password">Show Password</label>
+                </div>
+                <span id="password-error" class="text-danger"></span>
+            </div>
+            <div class="flash-container">
+                {% with messages = get_flashed_messages(with_categories=True) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} d-flex justify-content-between align-items-center alert-dismissible fade show mb-1" role="alert">
+                        <span>{{ message }}</span>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+                {% endwith %}
+            </div>
+
+            <!-- Submit Button -->
+            <div class="text-center">
+                <button type="submit" class="btn btn-green w-100">Sign Up</button>
+            </div>
+        </form>
+        <div class="text-center mt-3">
+            <a href="login.html" class="login-link">Already have an account? Log in</a>
+        </div>
+        
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

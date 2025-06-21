@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Service</title>
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        /* Additional styling */
+        body {
+            background-color: #f8f9fa;
+        }
+        .booking-container {
+            max-width: 600px;
+            margin: 30px auto;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+    </style>
+</head>
+<body>
+
+<!-- Booking Form Section -->
+<div class="container booking-container">
+    <h2 class="text-center mb-4">Book {{ service.name }}</h2>
+
+    <form action="{{ url_for('submit_booking') }}" method="POST">
+        <input type="hidden" name="service_id" value="{{ service.id }}">
+
+        <div class="form-group">
+            <label for="serviceName">Service Name</label>
+            <input type="text" class="form-control" id="serviceName" value="{{ service.name }}" disabled>
+        </div>
+
+        <div class="form-group">
+            <label for="description">Description</label>
+            <textarea class="form-control" id="description" rows="3" disabled>{{ service.description }}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="price">Price</label>
+            <input type="text" class="form-control" id="price" value="${{ service.price }}" disabled>
+        </div>
+
+        <div class="form-group">
+            <label for="dateOfRequest">Date of Request</label>
+            <input type="date" class="form-control" id="dateOfRequest" name="date_of_request" required>
+        </div>
+
+        <div class="form-group">
+            <label for="remarks">Remarks (optional)</label>
+            <textarea class="form-control" id="remarks" name="remarks" rows="3"></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block">Confirm Booking</button>
+    </form>
+</div>
+
+<!-- Bootstrap JS and dependencies -->
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+<!-- Services Table -->
+<div class="table-responsive">
+    <table class="table table-striped">
+        <thead class="table-dark">
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Base Price</th>
+                <th>Time Required</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for service in services %}
+            <tr>
+                <td>{{ service.id }}</td>
+                <td>{{ service.name }}</td>
+                <td>{{ service.description }}</td>
+                <td>{{ service.price }}</td>
+                <td>{{ service.time_required }} hours</td>
+                <td>
+                    <a href="{{ url_for('update_service', service_id=service.id) }}" class="btn btn-warning btn-sm">Edit</a>
+                    <a href="{{ url_for('delete_service', service_id=service.id) }}" class="btn btn-danger btn-sm">Delete</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+

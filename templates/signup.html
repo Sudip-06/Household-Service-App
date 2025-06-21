@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up</title>
+    <style>
+        .error {
+            color: red;
+        }
+
+        .success {
+            color: green;
+        }
+
+        #service-type-section {
+            display: none;
+        }
+    </style>
+    <script>
+        function toggleServiceType() {
+            const role = document.getElementById("role").value;
+            const serviceTypeSection = document.getElementById("service-type-section");
+            serviceTypeSection.style.display = role === "service_professional" ? "block" : "none";
+        }
+    </script>
+</head>
+<body>
+    <div class="signup-container">
+        <h2>Sign Up</h2>
+        <form method="POST">
+            <input type="text" name="username" placeholder="Username" required>
+            <input type="email" name="email" placeholder="Email" required>
+            <input type="password" name="password" placeholder="Password" required>
+            <input type="password" name="confirm_password" placeholder="Confirm Password" required>
+            <select id="role" name="role" required onchange="toggleServiceType()">
+                <option value="" disabled selected>Select your role</option>
+                <option value="customer">Customer</option>
+                <option value="service_professional">Service Professional</option>
+            </select>
+
+            <!-- Service Type Section for Service Professionals -->
+            <div id="service-type-section">
+                <select name="service_type" required>
+                    <option value="" disabled selected>Select a service</option>
+                    {% for service in services %}
+                        <option value="{{ service.name }}">{{ service.name }}</option>
+                    {% endfor %}
+                </select>
+                <input type="number" name="experience" placeholder="Years of Experience" min="0" max="42" required>
+                <textarea name="description" placeholder="Describe your service" required></textarea>
+            </div>
+
+            <input type="text" name="city" placeholder="City" required>
+            <input type="text" name="pincode" placeholder="Pincode" pattern="[0-9]{6}" maxlength="6" required>
+            <button type="submit">Sign Up</button>
+        </form>
+
+        {% with messages = get_flashed_messages(with_categories=True) %}
+        {% if messages %}
+            <div>
+                {% for category, message in messages %}
+                    <p class="{{ category }}">{{ message }}</p>
+                {% endfor %}
+            </div>
+        {% endif %}
+        {% endwith %}
+    </div>
+</body>
+</html>

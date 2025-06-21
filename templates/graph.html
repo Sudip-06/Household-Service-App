@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Body styling */
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f8f9fa;
+        }
+
+        /* Header */
+        h1 {
+            font-size: 2.5rem;
+            text-align: center;
+            color: #333;
+            margin-top: 30px;
+        }
+
+        /* Grid layout for charts */
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            padding: 20px;
+            width: 90%;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Chart card styling */
+        .chart-card {
+            background: #ffffff;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            text-align: center;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .chart-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Chart canvas */
+        canvas {
+            max-height: 400px;
+        }
+
+        /* Section title */
+        h2 {
+            font-size: 1.25rem;
+            color: #555;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        /* Monthly requests container */
+        .monthly-requests {
+            margin: 50px auto;
+            width: 90%;
+            max-width: 1200px;
+            text-align: center;
+        }
+
+        .monthly-requests h2 {
+            font-size: 1.75rem;
+            color: #333;
+            margin-bottom: 30px;
+        }
+
+        /* Chart colors */
+        .bar-colors {
+            background-color: #007bff;
+            border-color: #0056b3;
+        }
+
+        .line-colors {
+            background-color: rgba(75, 192, 192, 0.2);
+            border-color: rgba(75, 192, 192, 1);
+        }
+    </style>
+</head>
+<body>
+    <h1>Dashboard</h1>
+
+    <!-- Chart Grid -->
+    <div class="grid-container">
+        <div class="chart-card">
+            <h2>Customers by City</h2>
+            <canvas id="Customers vs City"></canvas>
+        </div>
+        <div class="chart-card">
+            <h2>Service Professionals by City</h2>
+            <canvas id="Professionals vs City"></canvas>
+        </div>
+        <div class="chart-card">
+            <h2>Service Professionals by Service Types</h2>
+            <canvas id="Service Types"></canvas>
+        </div>
+        <div class="chart-card">
+            <h2>Customer Requests by Service</h2>
+            <canvas id="Service vs Requests"></canvas>
+        </div>
+        <div class="chart-card">
+            <h2>Requests by Service Status</h2>
+            <canvas id="Service Status"></canvas>
+        </div>
+        <div class="chart-card">
+            <h2>Ratings by Customers</h2>
+            <canvas id="Ratings"></canvas>
+        </div>
+    </div>
+
+    <!-- Monthly Service Requests -->
+    <div class="monthly-requests">
+        <h2>Monthly Service Requests</h2>
+        <canvas id="monthlyRequestsChart"></canvas>
+    </div>
+
+    <script>
+        const barColors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
+
+        function createColumnChart(chartId, labels, data, xLabel, yLabel) {
+            new Chart(document.getElementById(chartId), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: yLabel,
+                        data: data,
+                        backgroundColor: barColors.slice(0, labels.length),
+                        borderColor: barColors.slice(0, labels.length),
+                        borderWidth: 1,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        title: { display: true, text: yLabel },
+                    },
+                    scales: {
+                        x: { title: { display: true, text: xLabel } },
+                        y: { title: { display: true, text: yLabel }, beginAtZero: true },
+                    }
+                }
+            });
+        }
+
+        function createPieChart(chartId, labels, data) {
+            new Chart(document.getElementById(chartId), {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: barColors.slice(0, labels.length),
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'top' },
+                        title: { display: true, text: chartId },
+                    }
+                }
+            });
+        }
+
+        fetch('/chart-data/customers-by-city').then(res => res.json()).then(data => {
+            createColumnChart('Customers vs City', data.labels, data.values, 'City', 'Number of Customers');
+        });
+
+        fetch('/chart-data/professionals-by-city').then(res => res.json()).then(data => {
+            createColumnChart('Professionals vs City', data.labels, data.values, 'City', 'Number of Professionals');
+        });
+
+        fetch('/chart-data/service-types').then(res => res.json()).then(data => {
+            createPieChart('Service Types', data.labels, data.values);
+        });
+
+        fetch('/chart-data/service-requests').then(res => res.json()).then(data => {
+            createColumnChart('Service vs Requests', data.labels, data.values, 'Service Name', 'Number of Requests');
+        });
+
+        fetch('/chart-data/service-status').then(res => res.json()).then(data => {
+            createPieChart('Service Status', data.labels, data.values);
+        });
+
+        fetch('/chart-data/ratings').then(res => res.json()).then(data => {
+            createPieChart('Ratings', data.labels, data.values);
+        });
+
+        fetch('/monthly_requests')
+        .then(response => response.json())
+        .then(data => {
+            const ctx = document.getElementById('monthlyRequestsChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.months,
+                    datasets: [
+                        {
+                            label: 'Total Requests',
+                            data: data.total_requests,
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            borderWidth: 2,
+                            fill: true
+                        },
+                        {
+                            label: 'Completed + Accepted Requests',
+                            data: data.completed_accepted_requests,
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                            borderWidth: 2,
+                            fill: true
+                        },
+                        {
+                            label: 'Completed + Accepted + Cancelled Requests',
+                            data: data.completed_accepted_cancelled_requests,
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                            borderWidth: 2,
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'top' },
+                        title: { display: true, text: 'Monthly Service Requests' },
+                    },
+                    scales: {
+                        x: { title: { display: true, text: 'Month' } },
+                        y: { title: { display: true, text: 'Number of Requests' }, beginAtZero: true },
+                    }
+                }
+            });
+        })
+        .catch(error => console.error('Error fetching monthly request data:', error));
+    </script>
+</body>
+</html>
+
+
+
+
+

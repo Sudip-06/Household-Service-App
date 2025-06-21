@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Household Service App</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+    <style>
+        /* Additional styling */
+        body {
+            background-color: #f8f9fa;
+        }
+        .login-container .extra-links a {
+            color: #4CAF50;
+            text-decoration: none;
+            font-size: 14px;
+            margin-left: 5px;
+            margin-right: 6px;
+        }
+
+        .login-container .extra-links a:hover {
+            text-decoration: underline;
+        }
+        .hero-section {
+            background-image: linear-gradient(to right, #007bff, #00bfff);
+            color: white;
+            padding: 60px;
+            text-align: center;
+            border-bottom-left-radius: 50% 15%;
+            border-bottom-right-radius: 50% 15%;
+        }
+        .btn-green {
+            background-color: #28a745;
+            color: #ffffff;
+        }
+        .btn-green:hover {
+            background-color: #218838;
+        }
+        .text-danger {
+            font-size: 0.9rem;
+        }
+        /* Link style */
+        .container .login-link {
+            display: block;
+            margin-top: 15px;
+            color: #4CAF50;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .container .login-link:hover {
+            text-decoration: underline;
+        }
+        .form-control{
+            margin-bottom: 25px;
+        }
+        .form-select{
+            margin-bottom: 25px;
+        }
+        .hero-section h1 {
+            font-weight: bold;
+            font-size: 3rem;
+        }
+        .hero-section p {
+            font-size: 1.2rem;
+        }
+        .service-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border: none;
+            border-radius: 5px;
+        }
+        .service-card:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+        }
+        .btn-primary {
+            background-color: #007bff;
+            border: none;
+        }
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+        .btn-green {
+            background-color: #28a745;
+            border: none;
+        }
+        .btn-green:hover {
+            background-color: #218838;
+        }
+        .navbar-brand {
+            font-weight: bold;
+        }
+        footer {
+            background-color: #343a40;
+            color: #ccc;
+            font-size: 0.9rem;
+        }
+        footer a {
+            color: #00bfff;
+            text-decoration: none;
+        }
+        footer a:hover {
+            color: #fff;
+        }
+        
+    </style>
+    <script>
+        function toggleFields() {
+            const role = document.getElementById('role').value;
+            document.getElementById('service-professional-fields').style.display = (role === 'service professional') ? 'block' : 'none';
+            document.getElementById('customer-fields').style.display = (role === 'customer') ? 'block' : 'none';
+        }
+
+        function togglePassword() {
+            const passwordField = document.getElementById('password');
+            const confirmPasswordField = document.getElementById('confirm_password');
+            const type = passwordField.type === 'password' ? 'text' : 'password';
+            passwordField.type = type;
+            confirmPasswordField.type = type;
+        }
+
+        function validatePassword() {
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirm_password').value;
+            if (password !== confirmPassword) {
+                document.getElementById('password-error').textContent = "Passwords do not match!";
+                return false;
+            }
+            document.getElementById('password-error').textContent = "";
+            return true;
+        }
+        // Function to toggle password visibility for a specified input field
+        function togglePasswordVisibility(fieldId) {
+            const field = document.getElementById(fieldId);
+            if (field.type === "password") {
+                field.type = "text";
+            } else {
+                field.type = "password";
+            }
+        }
+    </script>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <a class="navbar-brand" href="#">Household Service App</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto">
+            <li class="nav-item"><a class="nav-link" href="#">Home</a></li>
+            <li class="nav-item"><a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#signInModal">Sign In</a></li>
+            <li class="nav-item"><a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#signUpModal">Sign Up</a></li>
+            <li class="nav-item"><a class="nav-link" href="{{url_for('about_us')}}">About Us</a></li>
+            <li class="nav-item"><a class="nav-link" href="#services">Services</a></li>
+            <li class="nav-item"><a class="nav-link" href="{{url_for('contact_us')}}">Contact Us</a></li>
+        </ul>
+    </div>
+</nav>
+
+<!-- Hero Section -->
+<div class="hero-section">
+    <h1>Welcome to Household Service App</h1>
+    <p>Your one-stop solution for all household services.</p>
+    <a href="#services" class="btn btn-light btn-lg mt-3">Explore Services</a>
+</div>
+
+<!-- Services Section -->
+<div class="container my-5" id="services">
+    <h2 class="text-center mb-5">Our Services</h2>
+    <div class="row">
+        {% for service in services %}
+        <div class="col-md-4 mb-4">
+            <div class="card service-card shadow-sm">
+                <img src="{{ service.image_location }}" class="card-img-top" alt="{{ service.name }}">
+                <div class="card-body">
+                    <h5 class="card-title">{{ service.name }}</h5>
+                    <p class="card-text">{{ service.description }}</p>
+                    <a href="#" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#signInModal">Book Now <i class="fas fa-arrow-right"></i></a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Footer -->
+<footer class="text-center py-4">
+    <div class="container">
+        <p>&copy; 2024 Household Service App | All Rights Reserved</p>
+        <p>Follow us on:
+            <a href="{{url_for('facebook')}}" target="_blank"><i class="fab fa-facebook-f"></i> Facebook</a> |
+            <a href="{{url_for('twitter')}}" target="_blank"><i class="fab fa-twitter"></i> Twitter</a> |
+            <a href="{{url_for('instragram')}}" target="_blank"><i class="fab fa-instagram"></i> Instagram</a>
+        </p>
+    </div>
+</footer>
+
+<!-- Sign In Modal -->
+<div class="modal fade" id="signInModal" tabindex="-1" aria-labelledby="signInModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content p-4">
+            <div class="modal-body">
+                <h5 class="text-center mb-4">Sign In</h5>
+                <form action="#" method="POST">
+                    <!-- Email Input -->
+                    <div class="mb-3">
+                        <input type="email" class="form-control" name="email" placeholder="Email" required>
+                    </div>
+                    
+                    <!-- Password Input -->
+                    <div class="mb-3">
+                        <input type="password" class="form-control" name="password" id="password" placeholder="Password" required>
+                    </div>
+                    
+                    <!-- Password Visibility Toggle -->
+                    <div class="form-check mb-3">
+                        <input type="checkbox" class="form-check-input" onclick="togglePasswordVisibility('password')">
+                        <label class="form-check-label">Show Password</label>
+                    </div>
+                    
+                    <!-- Submit Button -->
+                    <div class="mb-3">
+                        <button type="submit" class="btn btn-green w-100">Sign In</button>
+                    </div>
+                </form>
+                
+                <!-- Additional Links -->
+                <div class="text-center mt-3">
+                    <a href="Forgot password.html" class="text-muted me-3">Forgot Password?</a>
+                    <a href="#" data-bs-toggle="modal" data-bs-target="#signUpModal" class="text-muted">Sign Up</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- Sign Up Modal -->
+<div class="modal fade" id="signUpModal" tabindex="-1" aria-labelledby="signUpModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content p-4">
+            <div class="modal-body">
+                <h5 class="text-center mb-4">Sign Up</h5>
+                <form action="{{ url_for('signup') }}" method="POST" onsubmit="return validatePassword()">
+                    <!-- Name -->
+                    <div class="mb-3">
+                        <input type="text" id="username" name="username" class="form-control" placeholder="Enter Your Full Name" required>
+                    </div>
+
+                    <!-- Email -->
+                    <div class="mb-3">
+                        <input type="email" id="email" name="email" class="form-control" placeholder="Enter Your Email Id" required>
+                    </div>
+
+                    <!-- Phone Number -->
+                    <div class="mb-3">
+                        <input type="text" id="phone_no" name="phone_no" class="form-control" pattern="[0-9]{10}" maxlength="10" placeholder="Enter Your 10-digit phone number" required>
+                    </div>
+
+                    <!-- Role Selection -->
+                    <div class="mb-3">
+                        <select id="role" name="role" class="form-select" onchange="toggleFields()" required>
+                            <option value="" disabled selected>Select Your Role</option>
+                            <option value="customer">Customer</option>
+                            <option value="service professional">Service Professional</option>
+                        </select>
+                    </div>
+
+                    <!-- Service Professional Fields -->
+                    <div id="service-professional-fields" style="display: none;">
+                        <div class="mb-3">
+                            <select id="service_type" name="service_type" class="form-select">
+                                <option value="" disabled selected>Select Service Type</option>
+                                {% for service in services %}
+                                <option value="{{ service.name }}">{{ service.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <input type="number" min="0" max="42" name="experience" class="form-control" placeholder="Years Of Experience">
+                        </div>
+                        <div class="mb-3">
+                            <textarea id="description" name="description" class="form-control" placeholder="Write a brief description of your profession"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- City -->
+                    <div class="mb-3">
+                        <select id="city" name="city" class="form-select" required>
+                            <option value="" disabled selected>Select Your City</option>
+                            {% for city in cities %}
+                            <option value="{{ city.city }}">{{ city.city }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Customer Fields -->
+                    <div id="customer-fields" style="display: none;">
+                        <div class="mb-3">
+                            <input type="text" id="area" name="area" class="form-control" placeholder="Enter Your Address">
+                        </div>
+                        <div class="mb-3">
+                            <input type="text" id="pincode" name="pincode" class="form-control" pattern="[0-9]{6}" maxlength="6" placeholder="Enter 6-digit pincode">
+                        </div>
+                    </div>
+
+                    <!-- Password -->
+                    <div class="mb-3">
+                        <input type="password" id="password" name="password" class="form-control" placeholder="Enter Password" required>
+                    </div>
+
+                    <!-- Confirm Password -->
+                    <div class="mb-3">
+                        <input type="password" id="confirm_password" name="confirm_password" class="form-control" placeholder="Confirm Password" required>
+                        <div class="form-check mt-2">
+                            <input type="checkbox" class="form-check-input" id="show-password" onclick="togglePassword()">
+                            <label class="form-check-label" for="show-password">Show Password</label>
+                        </div>
+                        <span id="password-error" class="text-danger"></span>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div class="mb-3">
+                        <button type="submit" class="btn btn-green w-100">Sign Up</button>
+                    </div>
+                </form>
+                <div class="text-center mt-3">
+                  <a href="#" data-bs-toggle="modal" data-bs-target="#signInModal" class="login-container">Already have an account? Log in</a>
+              </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+</body>
+</html>

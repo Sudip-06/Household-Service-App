@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Manage Services</title>
+</head>
+<body>
+    <h2>Manage Services</h2>
+    <table>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Price</th>
+            <th>Time Required</th>
+            <th>Actions</th>
+        </tr>
+        {% for service in services %}
+        <tr>
+            <td>{{ service.id }}</td>
+            <td>{{ service.name }}</td>
+            <td>{{ service.price }}</td>
+            <td>{{ service.time_required }} hours</td>
+            <td>
+                <a href="{{ url_for('update_service', service_id=service.id) }}">Edit</a>
+                <a href="{{ url_for('delete_service', service_id=service.id) }}">Delete</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+    <a href="{{ url_for('create_service') }}">Create New Service</a>
+</body>
+</html>
