@@ -103,7 +103,7 @@ Seeded in `data_base.sqlite3` for testing each role:
 
 | Role | Email | Password |
 |---|---|---|
-| Admin | `admin@test.com` | `a` |
+| Admin | `admin@test.com` | `123456789012` |
 | Customer | `c1@g.c` | `c` |
 | Service Professional | `p1@p.c` | `p` |
 
