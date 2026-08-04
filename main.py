@@ -10,7 +10,9 @@ from flask import (
     send_from_directory,
 )
 from datetime import datetime
+from functools import wraps
 from sqlalchemy import distinct, or_, desc, text as sql_text
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.sql import func
 from werkzeug.utils import secure_filename
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -130,22 +132,124 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 db.init_app(app)
 
-# Create missing tables when the application starts.
+
+def admin_required(route_function):
+    """Allow access only to authenticated administrators."""
+
+    @wraps(route_function)
+    def protected_route(*args, **kwargs):
+        if "user_id" not in session or session.get("role") != "admin":
+            flash("Administrator login is required.", "error")
+            return redirect(url_for("login"))
+
+        return route_function(*args, **kwargs)
+
+    return protected_route
+
+
+def ensure_admin_exists():
+    """
+    Create the first administrator from Vercel environment variables.
+
+    Required variables:
+        ADMIN_EMAIL
+        ADMIN_PASSWORD
+
+    Optional variable:
+        ADMIN_NAME
+
+    The operation is idempotent, so it is safe to run on Vercel cold starts.
+    """
+    admin_email = os.environ.get("ADMIN_EMAIL", "").strip().lower()
+    admin_password = os.environ.get("ADMIN_PASSWORD", "")
+    admin_name = os.environ.get("ADMIN_NAME", "System Administrator").strip()
+
+    if not admin_email or not admin_password:
+        app.logger.warning(
+            "ADMIN_EMAIL or ADMIN_PASSWORD is missing. "
+            "The initial administrator was not created."
+        )
+        return
+
+    if len(admin_password) < 12:
+        app.logger.error(
+            "ADMIN_PASSWORD must contain at least 12 characters. "
+            "The initial administrator was not created."
+        )
+        return
+
+    existing_user = user.query.filter(
+        func.lower(user.email) == admin_email
+    ).first()
+
+    if existing_user:
+        if existing_user.role != "admin":
+            app.logger.error(
+                "ADMIN_EMAIL already belongs to a non-admin account. "
+                "Use another email or update the account manually."
+            )
+            return
+
+        # Ensure an existing admin is active without resetting the password.
+        if existing_user.status != "approved":
+            existing_user.status = "approved"
+            try:
+                db.session.commit()
+            except SQLAlchemyError:
+                db.session.rollback()
+                app.logger.exception("Unable to reactivate the admin account.")
+
+        app.logger.info("Administrator account already exists.")
+        return
+
+    admin_user = user(
+        username=admin_name or "System Administrator",
+        email=admin_email,
+        phone_no=None,
+        password=generate_password_hash(admin_password),
+        date_of_join=datetime.utcnow(),
+        role="admin",
+        service_type=None,
+        experience=None,
+        description=None,
+        cv=None,
+        city=None,
+        pincode=None,
+        area=None,
+        status="approved",
+        ratings=None,
+    )
+
+    try:
+        db.session.add(admin_user)
+        db.session.commit()
+        app.logger.info("Initial administrator created successfully.")
+
+    except IntegrityError:
+        # Two serverless instances may try to create the same user together.
+        db.session.rollback()
+        app.logger.info(
+            "The administrator was already created by another instance."
+        )
+
+    except SQLAlchemyError:
+        db.session.rollback()
+        app.logger.exception("Unable to create the initial administrator.")
+
+
+# Create missing tables and bootstrap the first administrator.
 with app.app_context():
     try:
         db.create_all()
+        ensure_admin_exists()
         app.logger.info("Database tables verified successfully.")
     except Exception:
-        app.logger.exception(
-            "Unable to initialise the database."
-        )
-app.app_context().push()
+        app.logger.exception("Unable to initialise the database.")
+
 
 def get_service_by_id(service_id):
-    for service in services:
-        if service["id"] == service_id:
-            return service
-    return None
+    """Return one service record by primary key."""
+    return db.session.get(service, service_id)
 
 @app.route('/')
 def home():
@@ -181,46 +285,70 @@ def home():
 @app.route('/login.html', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        form_email = request.form['email']
-        form_password = request.form['password']
+        form_email = request.form.get('email', '').strip().lower()
+        form_password = request.form.get('password', '')
 
-        user_obj = user.query.filter_by(email=form_email).first()
+        if not form_email or not form_password:
+            flash("Email and password are required.", "error")
+            return render_template('login.html')
 
-        if user_obj:
-            # First check if password hash matches
-            hashed_check = check_password_hash(user_obj.password, form_password)
-            
-            # If not, fallback to plain text
-            if hashed_check or user_obj.password == form_password:
-                session['user_id'] = user_obj.id
-                session['role'] = user_obj.role
+        user_obj = user.query.filter(
+            func.lower(user.email) == form_email
+        ).first()
 
-                flash("Logged in successfully.", "success")
+        if not user_obj:
+            flash("Invalid email or password.", "error")
+            return render_template('login.html')
 
-                if user_obj.role == 'customer':
-                    if user_obj.status == 'blocked':
-                        return redirect(url_for('block'))
-                    else:
-                        return redirect(url_for('customer_dashboard'))
+        hashed_check = False
+        try:
+            hashed_check = check_password_hash(
+                user_obj.password or "",
+                form_password,
+            )
+        except (ValueError, TypeError):
+            hashed_check = False
 
-                elif user_obj.role == 'service professional':
-                    if user_obj.status == 'blocked':
-                        return redirect(url_for('block'))
-                    elif user_obj.status == 'approved':
-                        return redirect(url_for('professional_dashboard'))
-                    else:
-                        return redirect(url_for('pending'))
+        plain_text_match = user_obj.password == form_password
 
-                elif user_obj.role == 'admin':
-                    return redirect(url_for('admin_dashboard'))
-            else:
-                flash("Invalid password.", "error")
-        else:
-            flash("Invalid email.", "error")
+        if not hashed_check and not plain_text_match:
+            flash("Invalid email or password.", "error")
+            return render_template('login.html')
+
+        # Upgrade legacy plain-text passwords after a successful login.
+        if plain_text_match and not hashed_check:
+            user_obj.password = generate_password_hash(form_password)
+            try:
+                db.session.commit()
+            except SQLAlchemyError:
+                db.session.rollback()
+                app.logger.exception("Unable to upgrade the password hash.")
+
+        session.clear()
+        session['user_id'] = user_obj.id
+        session['role'] = user_obj.role
+
+        flash("Logged in successfully.", "success")
+
+        if user_obj.role == 'customer':
+            if user_obj.status == 'blocked':
+                return redirect(url_for('block'))
+            return redirect(url_for('customer_dashboard'))
+
+        if user_obj.role == 'service professional':
+            if user_obj.status == 'blocked':
+                return redirect(url_for('block'))
+            if user_obj.status == 'approved':
+                return redirect(url_for('professional_dashboard'))
+            return redirect(url_for('pending'))
+
+        if user_obj.role == 'admin':
+            return redirect(url_for('admin_dashboard'))
+
+        session.clear()
+        flash("This account has an unsupported role.", "error")
 
     return render_template('login.html')
-
-
 
 
 
@@ -730,11 +858,13 @@ def submit_booking():
 
 # Admin dashboard started here
 @app.route('/admin/dashboard')
+@admin_required
 def admin_dashboard():
-    return render_template('admin_dashboard.html', current_year=2024)
+    return render_template('admin_dashboard.html', current_year=datetime.now().year)
 
 
 @app.route('/admin/manage_customers')
+@admin_required
 def manage_customers():
     search_query = request.args.get('search', '')
 
@@ -770,6 +900,7 @@ def manage_customers():
 
 
 @app.route('/admin/approve_customer/<int:customer_id>')
+@admin_required
 def approve_customer(customer_id):
     customer = user.query.get_or_404(customer_id)
     if customer:
@@ -778,6 +909,7 @@ def approve_customer(customer_id):
     return redirect(url_for('manage_customers'))
 
 @app.route('/admin/block_customer/<int:customer_id>')
+@admin_required
 def block_customer(customer_id):
     customer = user.query.get_or_404(customer_id)
     if customer:
@@ -786,6 +918,7 @@ def block_customer(customer_id):
     return redirect(url_for('manage_customers'))
 
 @app.route('/admin/delete_customer/<int:customer_id>')
+@admin_required
 def delete_customer(customer_id):
     customer = user.query.get_or_404(customer_id)
     if customer:
@@ -797,6 +930,7 @@ def delete_customer(customer_id):
 
 # Routes for managing service professionals
 @app.route('/admin/manage_service_professionals', methods=['GET', 'POST'])
+@admin_required
 def manage_service_professionals():
     search_query = request.args.get('search', '')  # Get the search query from the URL parameters
 
@@ -828,6 +962,7 @@ def manage_service_professionals():
 
 
 @app.route('/admin/approve_professional/<int:professional_id>')
+@admin_required
 def approve_professional(professional_id):
     professional = user.query.get_or_404(professional_id)
     professional.status = "approved" 
@@ -835,6 +970,7 @@ def approve_professional(professional_id):
     return redirect(url_for('manage_service_professionals'))
 
 @app.route('/admin/block_professional/<int:professional_id>')
+@admin_required
 def block_professional(professional_id):
     professional = user.query.get_or_404(professional_id)
     professional.status = "blocked" 
@@ -842,6 +978,7 @@ def block_professional(professional_id):
     return redirect(url_for('manage_service_professionals'))
 
 @app.route('/admin/delete_professional/<int:professional_id>')
+@admin_required
 def delete_professional(professional_id):
     professional = user.query.get_or_404(professional_id)
     db.session.delete(professional)  
@@ -849,6 +986,7 @@ def delete_professional(professional_id):
     return redirect(url_for('manage_service_professionals'))
 
 @app.route('/admin/manage_reports')
+@admin_required
 def manage_reports():
     reports = Report.query.order_by(desc(Report.id)).all()
     return render_template(
@@ -857,6 +995,7 @@ def manage_reports():
     )
 
 @app.route('/admin/services')
+@admin_required
 def manage_services():
     search_query = request.args.get('search', '')
 
@@ -873,6 +1012,7 @@ def manage_services():
     return render_template('manage_services.html', services=services,  search_query=search_query)
 
 @app.route('/admin/create_service', methods=['GET', 'POST'])
+@admin_required
 def create_service():
     if request.method == 'POST':
         form_name = request.form['name']
@@ -895,6 +1035,7 @@ def create_service():
     return render_template('create_service.html')
 
 @app.route('/admin/update_service/<int:service_id>', methods=['GET', 'POST'])
+@admin_required
 def update_service(service_id):
     service_to_update = service.query.get_or_404(service_id)
     
@@ -908,6 +1049,7 @@ def update_service(service_id):
     return render_template('update_service.html', service=service_to_update)
 
 @app.route('/admin/delete_service/<int:service_id>', methods=['GET', 'POST'])
+@admin_required
 def delete_service(service_id):
     service_to_delete = service.query.get_or_404(service_id)
     
@@ -919,16 +1061,19 @@ def delete_service(service_id):
 
 # API Routes for Chart Data
 @app.route('/chart-data/customers-by-city')
+@admin_required
 def customers_by_city():
     data = db.session.query(user.city, func.count(user.id)).filter(user.role == 'customer').group_by(user.city).all()
     return jsonify({'labels': [row[0] for row in data], 'values': [row[1] for row in data]})
 
 @app.route('/chart-data/professionals-by-city')
+@admin_required
 def professionals_by_city():
     data = db.session.query(user.city, func.count(user.id)).filter(user.role == 'service professional').group_by(user.city).all()
     return jsonify({'labels': [row[0] for row in data], 'values': [row[1] for row in data]})
 
 @app.route('/chart-data/service-types')
+@admin_required
 def service_types():
     data = db.session.query(
         user.service_type, func.count(user.id)
@@ -943,54 +1088,82 @@ def service_types():
     })
 
 @app.route('/chart-data/service-requests')
+@admin_required
 def service_requests():
     data = db.session.query(ServiceRequest.service_name, func.count(ServiceRequest.id)).group_by(ServiceRequest.service_name).all()
     return jsonify({'labels': [row[0] for row in data], 'values': [row[1] for row in data]})
 
 @app.route('/chart-data/service-status')
+@admin_required
 def service_status():
     data = db.session.query(ServiceRequest.service_status, func.count(ServiceRequest.id)).group_by(ServiceRequest.service_status).all()
     return jsonify({'labels': [row[0] for row in data], 'values': [row[1] for row in data]})
 
 @app.route('/chart-data/ratings')
+@admin_required
 def ratings():
     data = db.session.query(ServiceRequest.ratings, func.count(ServiceRequest.id)).group_by(ServiceRequest.ratings).all()
     return jsonify({'labels': [row[0] for row in data], 'values': [row[1] for row in data]})
 
 @app.route('/monthly_requests')
+@admin_required
 def monthly_requests():
-    monthly_requests = db.session.query(
-        func.strftime('%Y-%m', ServiceRequest.date_of_request).label('month'),
-        func.count(ServiceRequest.id).label('total_requests')
-    ).group_by('month').all()
+    # SQLite uses strftime; PostgreSQL uses to_char.
+    if db.engine.dialect.name == 'postgresql':
+        month_expression = func.to_char(
+            ServiceRequest.date_of_request,
+            'YYYY-MM',
+        )
+    else:
+        month_expression = func.strftime(
+            '%Y-%m',
+            ServiceRequest.date_of_request,
+        )
 
-    completed_accepted_requests = db.session.query(
-        func.strftime('%Y-%m', ServiceRequest.date_of_request).label('month'),
-        func.count(ServiceRequest.id).label('completed_accepted_requests')
-    ).filter(ServiceRequest.service_status.in_(['Completed', 'Accepted'])).group_by('month').all()
+    all_requests = db.session.query(
+        month_expression.label('month'),
+        func.count(ServiceRequest.id).label('total_requests'),
+    ).group_by(month_expression).order_by(month_expression).all()
 
-    completed_accepted_cancelled_requests = db.session.query(
-        func.strftime('%Y-%m', ServiceRequest.date_of_request).label('month'),
-        func.count(ServiceRequest.id).label('completed_accepted_cancelled_requests')
-    ).filter(ServiceRequest.service_status.in_(['Completed', 'Accepted', 'Cancelled'])).group_by('month').all()
+    completed_or_accepted = db.session.query(
+        month_expression.label('month'),
+        func.count(ServiceRequest.id).label('request_count'),
+    ).filter(
+        ServiceRequest.service_status.in_(['Completed', 'Accepted'])
+    ).group_by(month_expression).all()
 
-    monthly_data = {
-        'months': [row[0] for row in monthly_requests],
-        'total_requests': [row[1] for row in monthly_requests],
+    completed_accepted_or_cancelled = db.session.query(
+        month_expression.label('month'),
+        func.count(ServiceRequest.id).label('request_count'),
+    ).filter(
+        ServiceRequest.service_status.in_(
+            ['Completed', 'Accepted', 'Cancelled']
+        )
+    ).group_by(month_expression).all()
+
+    completed_or_accepted_map = dict(completed_or_accepted)
+    completed_accepted_or_cancelled_map = dict(
+        completed_accepted_or_cancelled
+    )
+    months = [row.month for row in all_requests]
+
+    return jsonify({
+        'months': months,
+        'total_requests': [row.total_requests for row in all_requests],
         'completed_accepted_requests': [
-            next((req[1] for req in completed_accepted_requests if req[0] == month), 0)
-            for month in [row[0] for row in monthly_requests]
+            completed_or_accepted_map.get(month, 0)
+            for month in months
         ],
         'completed_accepted_cancelled_requests': [
-            next((req[1] for req in completed_accepted_cancelled_requests if req[0] == month), 0)
-            for month in [row[0] for row in monthly_requests]
-        ]
-    }
-    return monthly_data
+            completed_accepted_or_cancelled_map.get(month, 0)
+            for month in months
+        ],
+    })
 
 
 
 @app.route('/graph')
+@admin_required
 def graph():
     return render_template('graph.html')
 
@@ -1147,13 +1320,20 @@ def health():
             "Database health check failed."
         )
 
-        return jsonify(
-            {
-                "status": "error",
-                "message": str(error),
-            }
-        ), 500
+        response = {
+            "status": "error",
+            "message": "Database connection failed.",
+        }
+        if app.debug:
+            response["details"] = str(error)
+
+        return jsonify(response), 500
 
 if __name__ == "__main__":
-    db.create_all()
-    app.run()
+    with app.app_context():
+        db.create_all()
+        ensure_admin_exists()
+
+    app.run(debug=os.environ.get("FLASK_DEBUG") == "0")
+
+
