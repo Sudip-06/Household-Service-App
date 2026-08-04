@@ -1334,6 +1334,6 @@ if __name__ == "__main__":
         db.create_all()
         ensure_admin_exists()
 
-    app.run(debug=os.environ.get("FLASK_DEBUG") == "0")
+    app.run(debug=os.environ.get("FLASK_DEBUG") == "1")
 
 
