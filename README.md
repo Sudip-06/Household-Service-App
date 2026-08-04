@@ -18,7 +18,6 @@ what changed and why:
 |---|---|
 | **Added `requirements.txt`** | Didn't exist at all — nothing could be installed or deployed without it. |
 | **Added `vercel.json`** | Extends the function timeout to 60s for headroom on cold starts. Flask itself needs zero other config — Vercel auto-detects `main.py` as the entrypoint. |
-| **`SECRET_KEY` now reads from an env var** | Was hardcoded as the literal string `'your_secret_key'` in `main.py`. That's a real risk once this is in a public repo — anyone can forge session cookies. Falls back to a dev-only value locally so nothing breaks if you don't set it. |
 | **SQLite path and CV upload folder now serverless-aware** | Vercel's filesystem is **read-only** outside `/tmp` (and `/tmp` is wiped on every cold start). The original code did `os.makedirs()` on a path under the deployed code directory *at import time* — on Vercel that throws immediately and the app never boots. It now detects the Vercel environment and uses `/tmp`, seeding it from the committed `data_base.sqlite3` and `static/cv/` on first request so existing data shows up right away. Local dev behavior is unchanged (still writes next to the code, still persists normally). |
 | **`db.create_all()` now runs on import, not just under `if __name__ == "__main__"`** | That guard never executes when Vercel imports `main.py` as a WSGI module, so tables would never get created on a fresh `/tmp` database. Now idempotent and always runs. |
 | **New `/uploads/cv/<filename>` route** | CVs were served via Flask's built-in `/static/...` route, which only serves files bundled at deploy time. A newly-uploaded CV saved to `/tmp/cv` was upload-successful but then unviewable (404) because the static route doesn't know about `/tmp`. The two "View CV" links in `manage_service_professionals.html` now point at this new route instead, which serves from wherever `UPLOAD_FOLDER` actually is. |
@@ -104,8 +103,8 @@ Seeded in `data_base.sqlite3` for testing each role:
 
 | Role | Email | Password |
 |---|---|---|
-| Admin | `a@a.c` | `a` |
-| Customer | `c1@c.c` | `c` |
+| Admin | `admin@test.com` | `a` |
+| Customer | `c1@g.c` | `c` |
 | Service Professional | `p1@p.c` | `p` |
 
 These are intentionally trivial demo passwords for a seed dataset — not a
