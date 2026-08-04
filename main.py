@@ -1,34 +1,144 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify  # Add session here
+from flask import (
+    Flask,
+    render_template,
+    request,
+    redirect,
+    url_for,
+    flash,
+    session,
+    jsonify,
+    send_from_directory,
+)
 from datetime import datetime
-from sqlalchemy import distinct
-from sqlalchemy import or_, desc
-from model import *
-import os
-import random
-import string
+from sqlalchemy import distinct, or_, desc, text as sql_text
 from sqlalchemy.sql import func
 from werkzeug.utils import secure_filename
-from werkzeug.security import check_password_hash
-from werkzeug.security import generate_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
+
+from model import *
+
+import logging
+import os
+import random
+import shutil
+import string
+
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key'
+
+# Never hardcode the production secret key.
+app.secret_key = os.environ.get(
+    "SECRET_KEY",
+    "development-secret-key-change-this",
+)
 
 current_dir = os.path.abspath(os.path.dirname(__file__))
-
-# Specify the directory for CV uploads
-UPLOAD_FOLDER = os.path.join(current_dir, 'static', 'cv')
-ALLOWED_EXTENSIONS = {'pdf'}
-
-# Ensure the directory exists
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
-
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+is_vercel = os.environ.get("VERCEL") == "1"
 
 
-app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///" + os.path.join(current_dir, 'data_base.sqlite3')
+def normalize_database_url(database_url: str) -> str:
+    """
+    Convert PostgreSQL URLs supplied by Neon, Supabase, Render, etc.
+    into a URL supported by SQLAlchemy and psycopg 3.
+    """
+    if database_url.startswith("postgres://"):
+        database_url = (
+            "postgresql://"
+            + database_url[len("postgres://"):]
+        )
+
+    if database_url.startswith("postgresql://"):
+        database_url = (
+            "postgresql+psycopg://"
+            + database_url[len("postgresql://"):]
+        )
+
+    return database_url
+
+
+database_url = os.environ.get("DATABASE_URL")
+
+if database_url:
+    # Production database: Neon, Supabase, Render PostgreSQL, etc.
+    app.config["SQLALCHEMY_DATABASE_URI"] = normalize_database_url(
+        database_url
+    )
+
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+        "pool_pre_ping": True,
+        "pool_recycle": 280,
+    }
+
+elif is_vercel:
+    # Temporary fallback only.
+    # Changes stored here may disappear after a redeployment or cold start.
+    runtime_database = "/tmp/data_base.sqlite3"
+    bundled_database = os.path.join(
+        current_dir,
+        "data_base.sqlite3",
+    )
+
+    if not os.path.exists(runtime_database):
+        if os.path.exists(bundled_database):
+            shutil.copy2(
+                bundled_database,
+                runtime_database,
+            )
+        else:
+            open(runtime_database, "a").close()
+
+    app.config["SQLALCHEMY_DATABASE_URI"] = (
+        f"sqlite:///{runtime_database}"
+    )
+
+    logging.warning(
+        "DATABASE_URL is missing. "
+        "The application is using temporary SQLite storage."
+    )
+
+else:
+    # Local development database.
+    local_database = os.path.join(
+        current_dir,
+        "data_base.sqlite3",
+    )
+
+    app.config["SQLALCHEMY_DATABASE_URI"] = (
+        f"sqlite:///{local_database}"
+    )
+
+
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+
+# Vercel only allows runtime file writing inside /tmp.
+UPLOAD_FOLDER = (
+    "/tmp/cv"
+    if is_vercel
+    else os.path.join(current_dir, "static", "cv")
+)
+
+ALLOWED_EXTENSIONS = {"pdf"}
+
+os.makedirs(
+    UPLOAD_FOLDER,
+    exist_ok=True,
+)
+
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+
+
 db.init_app(app)
+
+# Create missing tables when the application starts.
+with app.app_context():
+    try:
+        db.create_all()
+        app.logger.info("Database tables verified successfully.")
+    except Exception:
+        app.logger.exception(
+            "Unable to initialise the database."
+        )
 app.app_context().push()
 
 def get_service_by_id(service_id):
@@ -1012,7 +1122,37 @@ def logout():
     return redirect(url_for('login'))
 
 
+@app.route("/health")
+def health():
+    """
+    Verify that the deployed application can connect to the database.
+    """
+    try:
+        db.session.execute(sql_text("SELECT 1"))
 
+        return jsonify(
+            {
+                "status": "ok",
+                "database": db.engine.url.get_backend_name(),
+                "persistent_database_configured": bool(
+                    os.environ.get("DATABASE_URL")
+                ),
+            }
+        ), 200
+
+    except Exception as error:
+        db.session.rollback()
+
+        app.logger.exception(
+            "Database health check failed."
+        )
+
+        return jsonify(
+            {
+                "status": "error",
+                "message": str(error),
+            }
+        ), 500
 
 if __name__ == "__main__":
     db.create_all()
