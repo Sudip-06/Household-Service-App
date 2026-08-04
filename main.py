@@ -1,10 +1,11 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify  # Add session here
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_from_directory  # Add session here
 from datetime import datetime
 from sqlalchemy import distinct
 from sqlalchemy import or_, desc
 from model import *
 import os
 import random
+import shutil
 import string
 from sqlalchemy.sql import func
 from werkzeug.utils import secure_filename
@@ -12,24 +13,72 @@ from werkzeug.security import check_password_hash
 from werkzeug.security import generate_password_hash
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key'
+# Set SECRET_KEY as an environment variable in production (Vercel dashboard / .env
+# locally). The hardcoded fallback below only exists so local dev keeps working
+# out of the box -- never rely on it for a real deployment.
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-only-secret-change-me')
 
 current_dir = os.path.abspath(os.path.dirname(__file__))
 
-# Specify the directory for CV uploads
-UPLOAD_FOLDER = os.path.join(current_dir, 'static', 'cv')
+# --- Filesystem setup -------------------------------------------------------
+# Vercel (and most serverless platforms) ship a READ-ONLY filesystem for the
+# deployed code, with only /tmp writable -- and /tmp is wiped on every cold
+# start. The block below keeps local dev behavior identical (writes next to
+# the code, persists normally) while making the app boot and run on a
+# read-only deployment instead of crashing at import time.
+#
+# NOTE: on Vercel, the SQLite DB and any newly-uploaded CVs only persist for
+# the lifetime of one warm serverless instance -- they reset on the next cold
+# start. That's fine for demoing/grading a single session, but if you need
+# real persistence, swap SQLALCHEMY_DATABASE_URI for a hosted Postgres DB
+# (e.g. Neon/Supabase, both free) and CV storage for an object store (e.g.
+# Vercel Blob, S3). See README.md > "Deployment > Persistence caveat".
+SEED_DB_PATH = os.path.join(current_dir, 'data_base.sqlite3')
+LOCAL_UPLOAD_FOLDER = os.path.join(current_dir, 'static', 'cv')
+
+IS_SERVERLESS = bool(os.environ.get('VERCEL'))
+
+if IS_SERVERLESS:
+    DB_PATH = '/tmp/data_base.sqlite3'
+    UPLOAD_FOLDER = '/tmp/cv'
+    # Seed /tmp with the committed database on first invocation of a warm
+    # instance so existing services/accounts are there immediately.
+    if not os.path.exists(DB_PATH) and os.path.exists(SEED_DB_PATH):
+        shutil.copy(SEED_DB_PATH, DB_PATH)
+    # Same for already-uploaded CVs, so existing professionals' "View CV"
+    # links aren't broken on a fresh cold start.
+    if not os.path.exists(UPLOAD_FOLDER) and os.path.exists(LOCAL_UPLOAD_FOLDER):
+        shutil.copytree(LOCAL_UPLOAD_FOLDER, UPLOAD_FOLDER)
+else:
+    DB_PATH = SEED_DB_PATH
+    UPLOAD_FOLDER = LOCAL_UPLOAD_FOLDER
+
 ALLOWED_EXTENSIONS = {'pdf'}
 
-# Ensure the directory exists
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
+try:
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+except OSError:
+    # Belt-and-suspenders: if the primary path still isn't writable for some
+    # reason, fall back to /tmp rather than crashing the whole app.
+    UPLOAD_FOLDER = '/tmp/cv'
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-
-app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///" + os.path.join(current_dir, 'data_base.sqlite3')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
+    'DATABASE_URL', "sqlite:///" + DB_PATH
+)
 db.init_app(app)
 app.app_context().push()
+db.create_all()  # idempotent -- only creates tables that don't already exist
+
+
+@app.route('/uploads/cv/<path:filename>')
+def uploaded_cv(filename):
+    """Serve CVs from the actual upload folder (static/cv locally, /tmp/cv on
+    Vercel) instead of Flask's static route, so newly-uploaded CVs are
+    viewable even when UPLOAD_FOLDER isn't the bundled static/ directory."""
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 def get_service_by_id(service_id):
     for service in services:
